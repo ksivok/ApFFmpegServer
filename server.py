@@ -4,58 +4,48 @@ import os
 
 app = Flask(__name__)
 
-TEMP_FILES = ["audio.mp3", "background.mp4", "subs.srt", "output.mp4"]
-
-def cleanup_temp_files():
-    for f in TEMP_FILES:
-        try:
-            if os.path.exists(f):
-                os.remove(f)
-                print(f"🧹 Removed {f}")
-        except Exception as e:
-            print(f"⚠️ Error removing {f}: {e}")
-
 @app.route("/generate", methods=["POST"])
 def generate():
     try:
         # 🧹 Удаляем старые файлы
-        cleanup_temp_files()
+        for file in ["audio.mp3", "background.mp4", "subs.srt", "output.mp4"]:
+            if os.path.exists(file):
+                os.remove(file)
 
-        # 🎵 Сохраняем аудио
+        # 🎵 Сохраняем озвучку (озвучка ElevenLabs)
         audio = request.files["audio"]
         audio.save("audio.mp3")
         print("✅ Audio saved")
 
-        # 🎥 Сохраняем видео
+        # 🎥 Сохраняем видео (с оригинальным звуком)
         video = request.files["video"]
         video.save("background.mp4")
         print("✅ Video saved")
 
         # 📝 Пробуем сохранить субтитры (если есть)
         has_subtitles = False
-        subs = request.files.get("subtitles")
-        if subs:
-            subs.save("subs.srt")
-            has_subtitles = True
-            print("✅ Subtitles saved")
-        else:
-            print("⚠️ No subtitles provided")
+        try:
+            subs = request.files.get("subtitles")
+            if subs:
+                subs.save("subs.srt")
+                has_subtitles = True
+                print("✅ Subtitles saved")
+        except Exception as e:
+            print("⚠️ Subtitles error:", str(e))
 
-        # 🎬 Формируем команду ffmpeg
+        # 🎬 Команда FFmpeg
         output_file = "output.mp4"
         ffmpeg_cmd = [
             "ffmpeg",
-            "-y",  # перезаписывать выходной файл
-            "-i", "background.mp4",
-            "-i", "audio.mp3"
+            "-i", "background.mp4",     # Видеофайл с оригинальным звуком
+            "-i", "audio.mp3",          # Озвучка (2-я дорожка)
         ]
 
-#         if has_subtitles and os.path.exists("subs.srt"):
-#            ffmpeg_cmd += ["-vf", "subtitles=subs.srt"]
-#        else:
-#            print("⚠️ No subtitles found or error – proceeding without them")
 
         ffmpeg_cmd += [
+            "-map", "0:v",    # Видео
+            "-map", "0:a",    # Оригинальный звук
+            "-map", "1:a",    # Озвучка
             "-c:v", "libx264",
             "-c:a", "aac",
             "-shortest",
@@ -68,13 +58,10 @@ def generate():
 
         return send_file(output_file, mimetype="video/mp4")
 
-    except subprocess.CalledProcessError as ffmpeg_err:
-        print("❌ FFmpeg failed:", ffmpeg_err)
-        return "FFmpeg Error", 500
-
     except Exception as e:
-        print("❌ General Error:", e)
+        print("❌ Error:", str(e))
         return "Internal Server Error", 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
