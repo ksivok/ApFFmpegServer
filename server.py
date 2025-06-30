@@ -7,22 +7,22 @@ app = Flask(__name__)
 @app.route("/generate", methods=["POST"])
 def generate():
     try:
-        # 🧹 Удаляем старые файлы
+        # Удаляем старые файлы
         for file in ["audio.mp3", "background.mp4", "subs.srt", "output.mp4"]:
             if os.path.exists(file):
                 os.remove(file)
 
-        # 🎵 Сохраняем озвучку (озвучка ElevenLabs)
+        # Сохраняем аудио от ElevenLabs
         audio = request.files["audio"]
         audio.save("audio.mp3")
         print("✅ Audio saved")
 
-        # 🎥 Сохраняем видео (с оригинальным звуком)
+        # Сохраняем видео (с оригинальным звуком)
         video = request.files["video"]
         video.save("background.mp4")
         print("✅ Video saved")
 
-        # 📝 Пробуем сохранить субтитры (если есть)
+        # Опционально субтитры
         has_subtitles = False
         try:
             subs = request.files.get("subtitles")
@@ -33,24 +33,28 @@ def generate():
         except Exception as e:
             print("⚠️ Subtitles error:", str(e))
 
-        # 🎬 Команда FFmpeg
         output_file = "output.mp4"
+
+        # Команда FFmpeg с двумя аудиодорожками
         ffmpeg_cmd = [
             "ffmpeg",
-            "-i", "background.mp4",     # Видеофайл с оригинальным звуком
-            "-i", "audio.mp3",          # Озвучка (2-я дорожка)
-        ]
-
-
-        ffmpeg_cmd += [
-            "-map", "0:v",    # Видео
-            "-map", "0:a",    # Оригинальный звук
-            "-map", "1:a",    # Озвучка
-            "-c:v", "libx264",
-            "-c:a", "aac",
+            "-i", "background.mp4",     # видео с оригинальным звуком
+            "-i", "audio.mp3",          # озвучка ElevenLabs
+            "-map", "0:v:0",            # видео
+            "-map", "0:a:0",            # звук из видео
+            "-map", "1:a:0",            # озвучка
+            "-c:v", "copy",             # без перекодирования видео
+            "-c:a", "aac",              # кодек для аудио дорожек
             "-shortest",
-            output_file
         ]
+
+        # Добавим сабы если есть
+        if has_subtitles and os.path.exists("subs.srt"):
+            ffmpeg_cmd.insert(1, "-vf")
+            ffmpeg_cmd.insert(2, "subtitles=subs.srt")
+            print("🎬 Subtitles filter added")
+
+        ffmpeg_cmd.append(output_file)
 
         print("🎬 FFmpeg started")
         subprocess.run(ffmpeg_cmd, check=True)
