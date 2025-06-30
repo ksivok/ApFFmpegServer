@@ -4,6 +4,13 @@ import os
 
 app = Flask(__name__)
 
+@app.route("/files/<path:filename>")
+def get_file(filename):
+    filepath = os.path.join(".", filename)
+    if os.path.exists(filepath):
+        return send_file(filepath)
+    return "File not found", 404
+
 @app.route("/generate", methods=["POST"])
 def generate():
     try:
