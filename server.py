@@ -41,6 +41,7 @@ def generate():
         return send_file(output, mimetype="video/mp4")
 
     except Exception as e:
+        print("server error ", e.text)
         return f"Server error: {str(e)}", 500
 
 # 👇 ВАЖНО: слушаем порт из окружения
