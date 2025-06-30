@@ -7,13 +7,17 @@ app = Flask(__name__)
 @app.route("/generate", methods=["POST"])
 def generate():
     try:
+        print("🔁 /generate called")
         audio = request.files["audio"]
         video = request.files["video"]
         subs = request.files["subtitles"]
 
         audio.save("audio.mp3")
+        print("✅ Audio saved")
         video.save("background.mp4")
+        print("✅ Video saved")
         subs.save("subs.srt")
+        print("✅ Subtitles saved")
 
         output = "output.mp4"
 
@@ -26,10 +30,13 @@ def generate():
             "-shortest",
             output
         ]
+        print("🎬 FFmpeg started")
         result = subprocess.run(command, capture_output=True, text=True)
 
         if result.returncode != 0:
-            return f"FFmpeg error:\n{result.stderr}", 500
+            print("🔴 FFmpeg error:")
+            print(result.stderr)  # ← логируем
+            return f"FFmpeg failed.", 500
 
         return send_file(output, mimetype="video/mp4")
 
