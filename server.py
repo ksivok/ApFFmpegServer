@@ -8,9 +8,10 @@ app = Flask(__name__)
 def generate():
     try:
         # Удаляем старые файлы
-        for file in ["audio.mp3", "background.mp4", "subs.srt", "output.mp4"]:
+        for file in ["audio.mp3", "background.mp4", "output.mp4"]:
             if os.path.exists(file):
                 os.remove(file)
+        print("✅ Old files removed")
 
         # Сохраняем аудио от ElevenLabs
         audio = request.files["audio"]
@@ -22,46 +23,58 @@ def generate():
         video.save("background.mp4")
         print("✅ Video saved")
 
-        # Опционально субтитры
-        has_subtitles = False
-        try:
-            subs = request.files.get("subtitles")
-            if subs:
-                subs.save("subs.srt")
-                has_subtitles = True
-                print("✅ Subtitles saved")
-        except Exception as e:
-            print("⚠️ Subtitles error:", str(e))
+        # Проверим наличие аудио в видео
+        print("🔍 Checking if background.mp4 has audio stream...")
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a",
+             "-show_entries", "stream=codec_type", "-of", "default=nw=1", "background.mp4"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+
+        has_video_audio = "codec_type=audio" in probe.stdout
+        print(f"🎧 Background has audio: {has_video_audio}")
 
         output_file = "output.mp4"
 
-        # Команда FFmpeg с микшированием аудио
+        # Команда FFmpeg с условием
+        if has_video_audio:
+            filter_complex = "[0:a][1:a]amix=inputs=2:duration=shortest[aout]"
+        else:
+            filter_complex = "[1:a]anull[aout]"
+
         ffmpeg_cmd = [
             "ffmpeg",
-            "-i", "background.mp4",     # входной видеофайл с оригинальным звуком
-            "-i", "audio.mp3",          # озвучка от ElevenLabs
-            "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=shortest[aout]",
-            "-map", "0:v",              # карта видео
-            "-map", "[aout]",           # карта аудио после микса
-            "-c:v", "copy",             # копируем видео без перекодирования
-            "-c:a", "aac",              # кодируем микс в AAC
+            "-y",  # overwrite
+            "-i", "background.mp4",
+            "-i", "audio.mp3",
+            "-filter_complex", filter_complex,
+            "-map", "0:v",
+            "-map", "[aout]",
+            "-c:v", "copy",
+            "-c:a", "aac",
             "-shortest",
+            output_file
         ]
 
+        print("🎬 Running FFmpeg with command:")
+        print(" ".join(ffmpeg_cmd))
 
+        result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print("🧾 FFmpeg stderr:")
+        print(result.stderr)
 
-        ffmpeg_cmd.append(output_file)
+        if result.returncode != 0:
+            raise RuntimeError("FFmpeg failed")
 
-        print("🎬 FFmpeg started")
-        subprocess.run(ffmpeg_cmd, check=True)
+        if not os.path.exists(output_file):
+            raise FileNotFoundError("Output file not created")
+
         print("✅ FFmpeg finished")
-
         return send_file(output_file, mimetype="video/mp4")
 
     except Exception as e:
         print("❌ Error:", str(e))
         return "Internal Server Error", 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
