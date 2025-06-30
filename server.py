@@ -1,3 +1,9 @@
+from flask import Flask, request, send_file
+import os
+import subprocess
+
+app = Flask(__name__)
+
 @app.route("/generate", methods=["POST"])
 def generate():
     try:
@@ -29,3 +35,8 @@ def generate():
 
     except Exception as e:
         return f"Server error: {str(e)}", 500
+
+# 👇 ВАЖНО: слушаем порт из окружения
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
