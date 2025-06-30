@@ -50,10 +50,10 @@ def generate():
             "-i", "audio.mp3"
         ]
 
-        if has_subtitles and os.path.exists("subs.srt"):
+"""         if has_subtitles and os.path.exists("subs.srt"):
             ffmpeg_cmd += ["-vf", "subtitles=subs.srt"]
         else:
-            print("⚠️ No subtitles found or error – proceeding without them")
+            print("⚠️ No subtitles found or error – proceeding without them") """
 
         ffmpeg_cmd += [
             "-c:v", "libx264",
@@ -73,7 +73,7 @@ def generate():
         return "FFmpeg Error", 500
 
     except Exception as e:
-        print("❌ General Error:", str(e))
+        print("❌ General Error:", e)
         return "Internal Server Error", 500
 
 if __name__ == "__main__":
